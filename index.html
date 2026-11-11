@@ -241,6 +241,11 @@
   .cases .case-copy h3 { transition: none; }
 }
 
+/* The Russian desktop home tab keeps the same comfortable hit width. */
+@media (min-width: 1024px) {
+  html[lang="ru"] .bottom-nav a[href="#me"] { flex: 0 0 56px; width: 56px; min-width: 56px; max-width: 56px; }
+}
+
 /* Mobile chrome and hero share the visible viewport; document flow stays stable. */
 @media (max-width: 1023px) {
   :root { --dock-bottom: var(--mobile-dock-bottom, 44px); }
