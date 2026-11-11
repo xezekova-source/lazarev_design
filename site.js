@@ -227,7 +227,7 @@ window.PORTFOLIO_ASSET_HASHES = {"assets/optimized/about-60ce3.webp":"387dd1bdae
       heroAlt: 'Иван Лазарев за работой за ноутбуком',
       name: ['Lазарев', 'Иван'],
       facts: ['12 лет (6 лидом) _', 'Более 50 успешных проектов', '_ Спикер _ AI Workflow'],
-      nav: ['Иван', 'Кейсы', 'Проекты', 'Обо мне'], navLabel: 'Разделы портфолио',
+      nav: ['Я', 'Кейсы', 'Проекты', 'Обо мне'], navLabel: 'Разделы портфолио',
       casesHeading: 'Кейсы', projectsHeading: 'Проекты', aboutLabel: 'Обо мне',
       contact: 'Напиши мне', contactLabel: 'Связаться со мной', contactAria: 'Написать Ивану в Telegram',
       switchLabel: 'v_English', switchAria: 'Открыть английскую версию', otherPage: 'en.html', otherLanguage: 'en',
@@ -278,7 +278,7 @@ window.PORTFOLIO_ASSET_HASHES = {"assets/optimized/about-60ce3.webp":"387dd1bdae
     const mobile = src.replace('@2x.webp', '@mobile.webp');
     const mobilePreview = window.PORTFOLIO_PREVIEWS?.[mobile] || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
     const preview = window.PORTFOLIO_PREVIEWS?.[src] || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
-    return `<picture><source media="(max-width:1023px) and (min-height:560px) and (orientation:portrait)" width="1920" height="3120" srcset="${mobilePreview}" data-srcset="${asset(mobile)}"><img src="${preview}" data-src="${asset(src)}" data-media-state="preview" alt="${escape(alt)}" width="2000" height="1100" loading="lazy" decoding="async" draggable="false"></picture>`;
+    return `<picture><source media="(max-width:1023px) and (orientation:portrait)" width="1920" height="3120" srcset="${mobilePreview}" data-srcset="${asset(mobile)}"><img src="${preview}" data-src="${asset(src)}" data-media-state="preview" alt="${escape(alt)}" width="2000" height="1100" loading="lazy" decoding="async" draggable="false"></picture>`;
   };
   const caseIcons = [
     '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Zm0 0v6h6M8 13h8M8 17h5"/>',
@@ -1580,32 +1580,58 @@ window.PORTFOLIO_ABOUT_COPY = {
       if (reduced()) { stop(); snap(); } else wake();
     }
 
-    function measure({ width, vh, mobile } = {}) {
+    function measure({ width, vh, mobile, preserveInteraction = false } = {}) {
       if (state.destroyed) return;
       width = Math.max(80, Number(width) || window.innerWidth);
       vh = Math.max(160, Number(vh) || window.innerHeight);
       mobile = mobile === undefined ? width < 1024 : Boolean(mobile);
       const baseWidth = mobile ? width - 40 : 1040;
       const baseHeight = mobile ? baseWidth * 16 / 9 : 568;
-      const dy = mobile ? 48 : 64;
       const gutter = mobile ? 20 : width < 1200 ? 40 : 64;
-      const availableTop = mobile ? 100 : vh < 740 ? 108 : 128;
-      const availableBottom = vh - (mobile ? 100 : vh < 740 ? 104 : 120);
-      const base = boundsOf(baseWidth, baseHeight, 8, dy, 96, 900, records.length);
-      const scale = Math.max(.01, Math.min(1,
-        Math.max(4, width - gutter * 2 - PAD * 2) / (base.maxX - base.minX),
-        // Reserve one grid step for rounding the front's top upward.
-        Math.max(4, availableBottom - availableTop - PAD * 2 - 4) / (base.maxY - base.minY)));
-      const settings = {
-        width: floor4(baseWidth * scale), height: floor4(baseHeight * scale),
-        dx: 8 * scale, dy: dy * scale, depth: 96 * scale, perspective: 900 * scale,
-        scale, viewportWidth: width, vh, mobile
-      };
+      const mobileInset = Math.min(vh < 560 ? 84 : 100, floor4(vh * .24));
+      const availableTop = mobile ? mobileInset : vh < 740 ? 108 : 128;
+      const availableBottom = vh - (mobile ? mobileInset : vh < 740 ? 104 : 120);
+      let scale = 1;
+      let settings;
+      if (mobile) {
+        // The phone's horizontal gutter determines the front card's width.
+        // Fit a shorter cover window vertically instead of uniformly shrinking
+        // the portrait artwork and making every card unnecessarily narrow.
+        const cardWidth = floor4(baseWidth);
+        const mobileDy = height => Math.min(48, Math.max(12, floor4(height * .05 + 12)));
+        const budget = Math.max(4, availableBottom - availableTop - PAD * 2 - 4);
+        let low = 4, high = Math.max(4, baseHeight);
+        for (let iteration = 0; iteration < 24; iteration += 1) {
+          const height = (low + high) / 2;
+          const bounds = boundsOf(cardWidth, height, 8, mobileDy(height), 96, 900, records.length);
+          if (bounds.maxY - bounds.minY <= budget) low = height; else high = height;
+        }
+        const cardHeight = floor4(low);
+        settings = {
+          width: cardWidth, height: cardHeight, dx: 8, dy: mobileDy(cardHeight), depth: 96, perspective: 900,
+          scale, viewportWidth: width, vh, mobile
+        };
+      } else {
+        // Keep the desktop's original uniform scale and perspective geometry.
+        const dy = 64;
+        const base = boundsOf(baseWidth, baseHeight, 8, dy, 96, 900, records.length);
+        scale = Math.max(.01, Math.min(1,
+          Math.max(4, width - gutter * 2 - PAD * 2) / (base.maxX - base.minX),
+          // Reserve one grid step for rounding the front's top upward.
+          Math.max(4, availableBottom - availableTop - PAD * 2 - 4) / (base.maxY - base.minY)));
+        settings = {
+          width: floor4(baseWidth * scale), height: floor4(baseHeight * scale),
+          dx: 8 * scale, dy: dy * scale, depth: 96 * scale, perspective: 900 * scale,
+          scale, viewportWidth: width, vh, mobile
+        };
+      }
       const bounds = boundsOf(settings.width, settings.height, settings.dx, settings.dy, settings.depth, settings.perspective, records.length);
       const top = Math.ceil((availableTop + PAD - bounds.minY - settings.height / 2) / 4) * 4;
       const previous = state.settings;
       const changed = previous && (previous.width !== settings.width || previous.height !== settings.height || previous.perspective !== settings.perspective);
-      if (changed && state.drag) cancelInteraction();
+      const preserveDrag = changed && state.drag && preserveInteraction
+        && previous.viewportWidth === settings.viewportWidth && previous.mobile === settings.mobile;
+      if (changed && state.drag && !preserveDrag) cancelInteraction();
       state.settings = settings;
       if (previous && changed) {
         const sx = settings.width / previous.width, sy = settings.height / previous.height, sz = settings.perspective / previous.perspective;
@@ -1614,6 +1640,16 @@ window.PORTFOLIO_ABOUT_COPY = {
         });
         state.px *= sx; state.pvx *= sx; state.py *= sy; state.pvy *= sy;
         state.tx *= sx; state.ty *= sy;
+        if (preserveDrag && state.drag.active) {
+          const drag = state.drag, card = records[drag.index];
+          const dx = drag.currentX - drag.startX, dy = drag.currentY - drag.startY;
+          // Safari's changing toolbar may alter the cover window mid-gesture.
+          // Rebase at the same finger position instead of canceling capture or
+          // letting the next pointermove jump back to the former card pose.
+          drag.base = { x: card.x - dx, y: card.y - dy * .25, z: card.z,
+            r: card.r - clamp(dx * .035, -9, 9) };
+          drag.samples = drag.samples.map(sample => ({ ...sample, x: sample.x * sx, y: sample.y * sy }));
+        }
       }
       section.style.setProperty('--case-width', settings.width + 'px');
       section.style.setProperty('--case-height', settings.height + 'px');
@@ -1646,10 +1682,16 @@ window.PORTFOLIO_ABOUT_COPY = {
 
     function moveDrag(event) {
       const drag = state.drag;
-      if (!drag || drag.id !== event.pointerId) return;
+      if (!drag || drag.id !== event.pointerId || doc.documentElement.classList.contains('language-changing')) return;
       const dx = event.clientX - drag.startX, dy = event.clientY - drag.startY;
+      drag.currentX = event.clientX; drag.currentY = event.clientY;
       if (!drag.active) {
-        if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx) * 1.15) { state.drag = null; return; }
+        if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx) * 1.15) {
+          state.drag = null;
+          const card = records[drag.index];
+          try { if (card.el.hasPointerCapture?.(drag.id)) card.el.releasePointerCapture(drag.id); } catch (_) {}
+          return;
+        }
         if (Math.abs(dx) <= 8 || Math.abs(dx) <= Math.abs(dy) * 1.15) return;
         drag.active = true;
         const card = records[drag.index];
@@ -1688,11 +1730,15 @@ window.PORTFOLIO_ABOUT_COPY = {
 
     function onDown(event) {
       if (state.destroyed || !state.introComplete || state.drag || !state.settings || !state.inView || event.button > 0
-        || doc.documentElement.classList.contains('language-changing')) return;
+        || event.isPrimary === false || doc.documentElement.classList.contains('language-changing')) return;
       const card = cardFrom(event);
       if (!card || card.index !== frontIndex()) return;
       state.drag = { id: event.pointerId, index: card.index, startX: event.clientX, startY: event.clientY,
-        started: performance.now(), active: false, samples: [] };
+        currentX: event.clientX, currentY: event.clientY, started: performance.now(), active: false, samples: [] };
+      // Touch implicitly captures its original child target. Own the complete
+      // stream on the article, including releases outside the deck; pan-y still
+      // lets the browser take over an ordinary vertical scroll.
+      try { card.el.setPointerCapture(event.pointerId); } catch (_) {}
     }
 
     function onMove(event) {
@@ -1711,17 +1757,18 @@ window.PORTFOLIO_ABOUT_COPY = {
         state.hovered = true;
         wake();
       }
-      moveDrag(event);
     }
 
     function onUp(event) {
       const drag = state.drag;
       if (!drag || drag.id !== event.pointerId) return;
+      if (drag.active && event.type !== 'pointercancel'
+        && Number.isFinite(event.clientX) && Number.isFinite(event.clientY)) moveDrag(event);
       state.drag = null;
       const card = records[drag.index];
+      try { if (card.el.hasPointerCapture?.(drag.id)) card.el.releasePointerCapture(drag.id); } catch (_) {}
       if (!drag.active) return;
       state.suppressClickUntil = performance.now() + 450;
-      try { if (card.el.hasPointerCapture?.(drag.id)) card.el.releasePointerCapture(drag.id); } catch (_) {}
       card.phase = 'rest';
       const first = drag.samples[0], last = drag.samples[drag.samples.length - 1];
       const seconds = first && last ? Math.max(.016, (last.t - first.t) / 1000) : 1;
@@ -1731,7 +1778,9 @@ window.PORTFOLIO_ABOUT_COPY = {
         y: recent && first ? clamp((last.y - first.y) / seconds, -1200, 1200) : 0
       };
       const offset = card.x - drag.base.x;
-      const accepted = event.type !== 'pointercancel' && (Math.abs(offset) > Math.min(state.settings.width, state.settings.height) * .3 || Math.abs(velocity.x) > 700);
+      const distance = state.settings.mobile ? state.settings.width * .22 : Math.min(state.settings.width, state.settings.height) * .3;
+      const speed = state.settings.mobile ? 550 : 700;
+      const accepted = event.type !== 'pointercancel' && (Math.abs(offset) > distance || Math.abs(velocity.x) > speed);
       if (accepted) advance(card, Math.sign(offset + velocity.x * .12) || Math.sign(offset) || card.direction, velocity);
       else { records.forEach(item => { item.nudge = 0; }); write(); if (reduced()) snap(); else wake(); }
     }
@@ -1761,10 +1810,17 @@ window.PORTFOLIO_ABOUT_COPY = {
     }, { capture: true });
     listen(deck, 'pointerdown', onDown);
     listen(stage, 'pointermove', onMove, { passive: false });
+    listen(window, 'pointermove', moveDrag, { passive: false });
     listen(stage, 'pointerleave', () => { if (!state.drag?.active) { state.hovered = false; state.tx = 0; state.ty = 0; wake(); } });
-    listen(deck, 'pointerup', onUp);
-    listen(deck, 'pointercancel', onUp);
-    listen(deck, 'lostpointercapture', () => { if (state.drag?.active) cancelInteraction(); });
+    listen(window, 'pointerup', onUp);
+    listen(window, 'pointercancel', onUp);
+    listen(deck, 'lostpointercapture', event => {
+      const drag = state.drag;
+      // A child losing its implicit touch capture during transfer to the
+      // article is expected, and must never cancel the newly active swipe.
+      if (drag && drag.id === event.pointerId && event.target === records[drag.index].el
+        && !event.target.hasPointerCapture?.(drag.id)) cancelInteraction();
+    });
     listen(deck, 'click', onClick);
     listen(deck, 'keydown', onKey);
     listen(doc, 'visibilitychange', () => { if (doc.hidden) { cancelInteraction(); stop(); } else wake(); });
@@ -1811,6 +1867,7 @@ window.PORTFOLIO_ABOUT_COPY = {
   let copy = window.PORTFOLIO_COPY;
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const round4 = value => Math.round(value / 4) * 4;
+  const floor4 = value => Math.max(4, Math.floor(value / 4) * 4);
   const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
   const mix = (a, b, p) => a + (b - a) * p;
   window.renderProjects?.();
@@ -2012,14 +2069,14 @@ window.PORTFOLIO_ABOUT_COPY = {
   }
   window.addEventListener('wheel', event => {
     if (event.ctrlKey || event.metaKey || event.deltaY <= Math.abs(event.deltaX)) return;
-    const delta = event.deltaY * (event.deltaMode === 1 ? 32 : event.deltaMode === 2 ? metrics.vh : 1);
+    const delta = event.deltaY * (event.deltaMode === 1 ? 32 : event.deltaMode === 2 ? visibleViewportHeight || metrics.vh : 1);
     guardCaseInput(event, delta);
   }, { passive: false });
   window.addEventListener('keydown', event => {
     if (['ArrowDown', 'PageDown', ' '].includes(event.key) && !event.shiftKey
       && !event.ctrlKey && !event.metaKey && !event.altKey
       && !event.target.closest?.('input,textarea,select,button,a,[contenteditable="true"]')) {
-      guardCaseInput(event, event.key === 'ArrowDown' ? 40 : metrics.vh);
+      guardCaseInput(event, event.key === 'ArrowDown' ? 40 : visibleViewportHeight || metrics.vh);
     }
   }, { passive: false });
   function cancelMenuScroll() {
@@ -2039,8 +2096,9 @@ window.PORTFOLIO_ABOUT_COPY = {
   function advanceCaseStack(nextIndex) {
     cancelMenuScroll();
     const vh = metrics.vh || round4(window.innerHeight);
-    const hold = metrics.caseHold ?? round4(vh * .6);
-    const step = metrics.caseStep ?? round4(vh * 1.4);
+    const fallback = caseTiming(vh, metrics.mobile ?? window.innerWidth < 1024);
+    const hold = metrics.caseHold ?? fallback.caseHold;
+    const step = metrics.caseStep ?? fallback.caseStep;
     const top = casesSection.getBoundingClientRect().top + window.scrollY;
     const index = clamp(nextIndex, 0, caseCards.length);
     // Align the scroll scene while the heading is pinned. The existing card
@@ -2122,6 +2180,9 @@ window.PORTFOLIO_ABOUT_COPY = {
   }));
   ['wheel', 'touchstart', 'touchmove', 'pointerdown', 'keydown', 'resize'].forEach(type => {
     window.addEventListener(type, event => {
+      // Safari's toolbar sends resize while a navigation/drag is in progress.
+      // A height-only change must not cancel that interaction.
+      if (type === 'resize' && isMobileHeightOnlyResize()) return;
       const insideMenu = event.target instanceof Node && nav.contains(event.target);
       // Retarget atomically on click, keeping the current stretched shape
       // between a menu pointer-down and its corresponding click.
@@ -2148,6 +2209,8 @@ window.PORTFOLIO_ABOUT_COPY = {
   let currentSection = '';
   let pendingFrame = false;
   let metrics = {};
+  let visibleViewportHeight = 0;
+  let lastCaseGeometry = null;
   let contactProgress = 0;
   let previousFrame = 0;
 
@@ -2165,21 +2228,79 @@ window.PORTFOLIO_ABOUT_COPY = {
     });
     updateIndicator(animate);
   }
+  function viewportOrientation() {
+    const type = window.screen?.orientation?.type;
+    if (type) return type.split('-')[0];
+    return typeof window.orientation === 'number'
+      ? (Math.abs(window.orientation) % 180 === 90 ? 'landscape' : 'portrait') : '';
+  }
+  function isMobileHeightOnlyResize() {
+    return Boolean(metrics.vh && metrics.mobile && window.innerWidth < 1024
+      && window.innerWidth === metrics.width && viewportOrientation() === metrics.orientation);
+  }
+  function syncVisibleViewport(mobile = window.innerWidth < 1024) {
+    const visual = window.visualViewport;
+    // Pinch zoom changes visual offsets/height without changing document flow.
+    // Let the browser pan its viewport instead of moving the hero underneath it.
+    if (mobile && visual && Math.abs((visual.scale || 1) - 1) > .01 && visibleViewportHeight) return;
+    const height = floor4(mobile && visual && Math.abs((visual.scale || 1) - 1) <= .01
+      ? visual.height || window.innerHeight : window.innerHeight);
+    if (height > 0 && height !== visibleViewportHeight) {
+      visibleViewportHeight = height;
+      document.documentElement.style.setProperty('--visible-viewport-height', height + 'px');
+      document.documentElement.style.setProperty('--visible-viewport-top', '0px');
+    }
+  }
+  function caseTiming(vh, mobile) {
+    return {
+      // Floor to the 4px grid so mobile flights are never more than half the
+      // previous desktop-rate distance, including at fractional viewport ratios.
+      caseHold: mobile ? floor4(vh * .24) : round4(vh * .6),
+      caseStep: mobile ? floor4(vh * .56) : round4(vh * 1.4)
+    };
+  }
+  function measureCaseGeometry(width, vh, mobile, preserveInteraction = false, force = false) {
+    if (!caseStack) return;
+    if (!force && lastCaseGeometry && lastCaseGeometry.width === width
+      && lastCaseGeometry.vh === vh && lastCaseGeometry.mobile === mobile) return;
+    const geometry = caseStack.measure({ width, vh, mobile, preserveInteraction });
+    lastCaseGeometry = { width, vh, mobile };
+    return geometry;
+  }
   function measure() {
     const width = window.innerWidth;
-    const vh = round4(window.innerHeight);
     const mobile = width < 1024;
+    const orientation = viewportOrientation();
+    const preserveMobileFlow = mobile && metrics.mobile && metrics.vh
+      && width === metrics.width && orientation === metrics.orientation;
+    // Freeze mobile document geometry across URL-bar/keyboard height changes.
+    // Width/orientation changes establish a new layout; desktop still follows
+    // every window resize as before.
+    const vh = preserveMobileFlow ? metrics.vh : round4(window.innerHeight);
+    syncVisibleViewport(mobile);
     document.documentElement.style.setProperty('--viewport-height', vh + 'px');
     document.documentElement.style.setProperty('--layout-width', Math.min(1440, round4(width)) + 'px');
     const heroSize = mobile ? clamp(round4(width * 64 / 440), 44, vh <= 640 ? 56 : 64) : clamp(round4(Math.min(width, 1440) * 124 / 1440), 80, 124);
     document.documentElement.style.setProperty('--hero-short-image-height', round4(clamp(720 - (width - 320) * .5, 640, 720)) + 'px');
     document.documentElement.style.setProperty('--hero-name-size', heroSize + 'px');
     document.documentElement.style.setProperty('--hero-name-line', round4(heroSize * .942) + 'px');
-    const caseHold = round4(vh * .6);
-    const caseStep = round4(vh * 1.4);
+    if (mobile) {
+      const dockBottom = vh <= 740 ? 32 : 44;
+      const nameBottom = dockBottom + 44 + 20;
+      const nameLine = round4(heroSize * .942);
+      document.documentElement.style.setProperty('--mobile-dock-bottom', dockBottom + 'px');
+      document.documentElement.style.setProperty('--hero-social-top', (vh <= 640 ? 16 : 40) + 'px');
+      document.documentElement.style.setProperty('--hero-facts-top', (vh <= 640 ? 76 : 116) + 'px');
+      document.documentElement.style.setProperty('--hero-name-bottom', nameBottom + 'px');
+      document.documentElement.style.setProperty('--hero-role-bottom', (nameBottom + nameLine * 2 + 16) + 'px');
+    }
+    const { caseHold, caseStep } = caseTiming(vh, mobile);
     // Equal flights; the sticky stage releases exactly at the last one.
     casesSection.style.setProperty('--case-scroll-height', (vh + caseHold + caseStep * caseCards.length) + 'px');
-    caseStack?.measure({ width, vh, mobile });
+    // Fit only the absolute card window to current browser chrome. Scroll
+    // distance, sticky-stage height and all following sections keep flow vh.
+    measureCaseGeometry(width, mobile ? visibleViewportHeight || vh : vh,
+      mobile, Boolean(preserveMobileFlow), true);
     // Fit the perspective lettering inside the actual mobile column.
     const scene = document.querySelector('.about-scene');
     const sceneCanvas = document.querySelector('.about-scene-canvas');
@@ -2191,9 +2312,18 @@ window.PORTFOLIO_ABOUT_COPY = {
       sceneCanvas.style.removeProperty('transform');
       scene.style.removeProperty('height');
     }
-    metrics = { vh, mobile, caseHold, caseStep };
+    metrics = { width, vh, mobile, orientation, caseHold, caseStep };
     updateIndicator();
     scheduleFrame();
+  }
+  function onViewportResize() {
+    if (isMobileHeightOnlyResize()) {
+      syncVisibleViewport(true);
+      measureCaseGeometry(metrics.width, visibleViewportHeight || metrics.vh, true, true);
+      scheduleFrame();
+      return;
+    }
+    measure();
   }
   function update(frameTime) {
     pendingFrame = false;
@@ -2256,7 +2386,14 @@ window.PORTFOLIO_ABOUT_COPY = {
     scheduleFrame();
     reconcileVideo();
   });
-  window.addEventListener('resize', measure, { passive: true });
+  window.addEventListener('resize', onViewportResize, { passive: true });
+  window.visualViewport?.addEventListener('resize', () => {
+    syncVisibleViewport();
+    if (isMobileHeightOnlyResize()) {
+      measureCaseGeometry(metrics.width, visibleViewportHeight || metrics.vh, true, true);
+    }
+    scheduleFrame();
+  }, { passive: true });
   window.addEventListener('portfolio:localechange', () => {
     cancelMenuScroll();
     copy = window.PORTFOLIO_COPY;
@@ -2514,6 +2651,8 @@ window.PORTFOLIO_ABOUT_COPY = {
   for (const event of ['wheel','touchstart','keydown']) window.addEventListener(event, finish, { passive:true, capture:true });
   window.addEventListener('pointerdown', event => { if (!event.target.closest('.language-switch')) finish(); }, { passive:true, capture:true });
   window.addEventListener('resize', () => {
+    // Safari toolbar changes do not interrupt the in-place language animation.
+    if (innerWidth < 1024 && innerWidth === measuredWidth) return;
     finish();
     if (innerWidth !== measuredWidth) reserveBilingualSpace();
   }, { passive:true });
